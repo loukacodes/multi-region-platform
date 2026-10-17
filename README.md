@@ -2,6 +2,8 @@
 
 A small Node.js, Express, SQLite, and EJS app that routes each region (tenant) to its own SQLite database shard. The shards share one schema, and a separate registry database maps each region to its shard file.
 
+<img width="1120" height="696" alt="image" src="https://github.com/user-attachments/assets/aceb6da2-837d-4a65-a9fa-e7fba0a01041" />
+
 ## Overview
 
 - `db/global_registry.db` is the routing table. Its `tenants` table maps each region ID to a shard file.
