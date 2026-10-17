@@ -1,12 +1,12 @@
-# Multi-Tenant SQLite Demo
+# Multi-Region SQLite Demo
 
-A small Node.js, Express, SQLite, and EJS app that routes each region (tenant) to its own SQLite database shard. The shards share one schema, and a separate registry database maps each region to its shard file.
+A small Node.js, Express, SQLite, and EJS app that routes each region to its own SQLite database shard. The shards share one schema, and a separate registry database maps each region to its shard file.
 
-<img width="1120" height="696" alt="image" src="https://github.com/user-attachments/assets/aceb6da2-837d-4a65-a9fa-e7fba0a01041" />
+![alt text](image.png)
 
 ## Overview
 
-- `db/global_registry.db` is the routing table. Its `tenants` table maps each region ID to a shard file.
+- `db/global_registry.db` is the routing table. Its `regions` table maps each region ID to a shard file.
 - `db/region_us.db`, `db/region_eu.db`, `db/region_apac.db`, `db/region_latam.db`, and `db/region_mea.db` are the regional shards. Each holds that region's employees, users, and roles.
 - Every shard has the same tables:
   - `employees`: ID, name, and job title.
@@ -21,7 +21,7 @@ A small Node.js, Express, SQLite, and EJS app that routes each region (tenant) t
 
 ```
 server.js          Express server: SQLite helpers, registry lookup, shard setup, validation, and routes
-seeds.js           Seed data: the regions (TENANT_SEEDS) and the sample employees and users (EMPLOYEE_SEEDS)
+seeds.js           Seed data: the regions (REGION_SEEDS) and the sample employees and users (EMPLOYEE_SEEDS)
 index.ejs          Dashboard template (rendered from the project root)
 db/                SQLite databases (registry and region shards), created on start
 package.json       Dependencies and scripts
@@ -54,32 +54,32 @@ The registry and all shards are recreated with the seed data.
 
 ## Adding a Region
 
-1. Add a row to `TENANT_SEEDS` in `seeds.js`, for example `{ id: 'region_jp', name: 'Japan', db_file: 'region_jp.db' }`.
+1. Add a row to `REGION_SEEDS` in `seeds.js`, for example `{ id: 'region_jp', name: 'Japan', db_file: 'region_jp.db' }`.
 2. Optional: add an `EMPLOYEE_SEEDS` entry for the region with sample rows.
 3. Restart the server. The new shard is created, and the region appears in the dropdown.
 
-If you remove a region from `TENANT_SEEDS`, its registry row is removed on the next start, but its `.db` file stays in `db/` until you delete it.
+If you remove a region from `REGION_SEEDS`, its registry row is removed on the next start, but its `.db` file stays in `db/` until you delete it.
 
 ## Inspecting the Databases
 
 ```bash
-sqlite3 db/global_registry.db "SELECT * FROM tenants;"
+sqlite3 db/global_registry.db "SELECT * FROM regions;"
 sqlite3 db/region_us.db ".tables"
 sqlite3 db/region_us.db ".schema"
 ```
 
 ## Routes
 
-| Method | Path                        | Purpose                        |
-| ------ | --------------------------- | ------------------------------ |
-| GET    | `/?tenant=region_us`        | View a region's employees and users |
-| GET    | `/?tenant=region_us&edit=1` | Open the edit form for employee ID 1 |
-| GET    | `/?tenant=region_us&editUser=1` | Open the edit form for user ID 1 |
-| POST   | `/employees`                | Add an employee                |
-| POST   | `/employees/:id/update`     | Update an employee             |
-| POST   | `/employees/:id/delete`     | Delete an employee and their linked users |
-| POST   | `/users`                    | Add a user                     |
-| POST   | `/users/:id/update`         | Update a user                  |
-| POST   | `/users/:id/delete`         | Delete a user                  |
+| Method | Path                            | Purpose                                   |
+| ------ | ------------------------------- | ----------------------------------------- |
+| GET    | `/?region=region_us`            | View a region's employees and users       |
+| GET    | `/?region=region_us&edit=1`     | Open the edit form for employee ID 1      |
+| GET    | `/?region=region_us&editUser=1` | Open the edit form for user ID 1          |
+| POST   | `/employees`                    | Add an employee                           |
+| POST   | `/employees/:id/update`         | Update an employee                        |
+| POST   | `/employees/:id/delete`         | Delete an employee and their linked users |
+| POST   | `/users`                        | Add a user                                |
+| POST   | `/users/:id/update`             | Update a user                             |
+| POST   | `/users/:id/delete`             | Delete a user                             |
 
 Region IDs are `region_us` (North America), `region_eu` (Europe), `region_apac` (Asia Pacific), `region_latam` (Latin America), and `region_mea` (Middle East and Africa).
