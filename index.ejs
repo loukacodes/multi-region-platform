@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Enterprise Multi-Tenant Platform</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; color: #111; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        select, input { padding: 10px; margin: 6px 0 12px; width: 100%; border: 1px solid #d1d5da; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #e1e4e8; padding: 10px; text-align: left; vertical-align: middle; }
+        th { background-color: #e9ecef; color: #333; border-bottom: 2px solid #adb5bd; }
+        .panel { margin-top: 25px; background: #fdfdfd; padding: 20px; border-radius: 6px; border: 1px solid #eaecef; }
+        .badge { background: #e1ffd8; color: #155724; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; }
+        .alert { background: #f1f3f5; color: #333; border: 1px solid #ced4da; padding: 10px; border-radius: 4px; margin: 15px 0; }
+        .btn { display: inline-block; padding: 7px 13px; border: 1px solid #495057; border-radius: 4px; background: white; color: #343a40; font-weight: bold; cursor: pointer; text-decoration: none; font-size: 0.9em; }
+        .btn-primary { border-color: #343a40; color: #212529; }
+        .btn-primary:hover { background: #343a40; color: white; }
+        .btn-edit { border-color: #6c757d; color: #495057; }
+        .btn-edit:hover { background: #6c757d; color: white; }
+        .btn-danger { border-color: #868e96; color: #868e96; }
+        .btn-danger:hover { background: #868e96; color: white; }
+        .btn-muted { border-color: #adb5bd; color: #868e96; }
+        .btn-muted:hover { background: #adb5bd; color: white; }
+        .actions { white-space: nowrap; }
+        .actions form { display: inline; margin: 0; }
+        .actions .btn { margin-right: 4px; }
+        .row-buttons { margin-top: 8px; }
+        .row-buttons .btn { margin-right: 6px; }
+        .add-section { margin: 15px 0; }
+        .add-section summary { display: inline-block; list-style: none; cursor: pointer; }
+        .add-section summary::-webkit-details-marker { display: none; }
+        .add-section .panel { margin-top: 12px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Enterprise SaaS Platform (Multi-Tenant Architecture)</h2>
+
+    <!-- Tenant selector: resolves the shard via the global registry on each request -->
+    <form method="GET" action="/">
+        <label for="tenantSelect"><strong>Active Region:</strong></label>
+        <select id="tenantSelect" name="tenant" onchange="this.form.submit()">
+            <% tenants.forEach(t => { %>
+                <option value="<%= t.id %>" <%= t.id === selectedTenant.id ? 'selected' : '' %>><%= t.name %></option>
+            <% }) %>
+        </select>
+    </form>
+
+    <p>Routed to shard: <span class="badge"><%= selectedTenant.db_file %></span></p>
+
+    <% if (message) { %>
+        <div class="alert"><%= message %></div>
+    <% } %>
+
+    <!-- READ: Table of the active tenant's records -->
+    <h3>Employees for <%= selectedTenant.name %></h3>
+    <% if (rows.length === 0) { %>
+        <p>No employee records found for this tenant.</p>
+    <% } else { %>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% rows.forEach(row => { %>
+                    <tr>
+                        <td><%= row.id %></td>
+                        <td><%= row.name %></td>
+                        <td><%= row.role %></td>
+                        <td class="actions">
+                            <a class="btn btn-edit" href="/?tenant=<%= encodeURIComponent(selectedTenant.id) %>&edit=<%= row.id %>">Edit</a>
+                            <form method="POST" action="/employees/<%= row.id %>/delete" onsubmit="return confirm('Delete this record from <%= selectedTenant.name %>?');">
+                                <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+                                <button type="submit" class="btn btn-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    <% } %>
+
+    <!-- Employee edit form, or the collapsed Add Employee control -->
+    <% if (editing) { %>
+        <form class="panel" method="POST" action="/employees/<%= editing.id %>/update">
+            <h4>Edit Employee #<%= editing.id %> in <%= selectedTenant.name %></h4>
+            <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+
+            <label>Employee Name:</label>
+            <input type="text" name="name" required value="<%= editing.name %>">
+
+            <label>Role:</label>
+            <input type="text" name="role" required value="<%= editing.role %>">
+
+            <div class="row-buttons">
+                <button type="submit" class="btn btn-edit">Save Changes</button>
+                <a class="btn btn-muted" href="/?tenant=<%= encodeURIComponent(selectedTenant.id) %>">Cancel</a>
+            </div>
+        </form>
+    <% } else { %>
+        <details class="add-section">
+            <summary class="btn btn-primary">Add Employee</summary>
+            <form class="panel" method="POST" action="/employees">
+                <h4>Add Employee to <%= selectedTenant.name %></h4>
+                <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+
+                <label>Employee Name:</label>
+                <input type="text" name="name" required placeholder="e.g. John Doe">
+
+                <label>Role:</label>
+                <input type="text" name="role" required placeholder="e.g. Software Engineer">
+
+                <button type="submit" class="btn btn-primary">Add Record to Tenant Database</button>
+            </form>
+        </details>
+    <% } %>
+
+    <!-- READ: Users and access roles stored in this tenant's shard -->
+    <h3>Users &amp; Access Roles</h3>
+    <% if (users.length === 0) { %>
+        <p>No users for this tenant.</p>
+    <% } else { %>
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Access Role</th>
+                    <th>Linked Employee</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% users.forEach(u => { %>
+                    <tr>
+                        <td><%= u.username %></td>
+                        <td><%= u.access_role %></td>
+                        <td><%= u.employee || '-' %></td>
+                        <td class="actions">
+                            <a class="btn btn-edit" href="/?tenant=<%= encodeURIComponent(selectedTenant.id) %>&editUser=<%= u.id %>">Edit</a>
+                            <form method="POST" action="/users/<%= u.id %>/delete" onsubmit="return confirm('Delete user <%= u.username %>?');">
+                                <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+                                <button type="submit" class="btn btn-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    <% } %>
+
+    <% if (editingUser) { %>
+        <!-- MODIFY: Update form for the selected user -->
+        <form class="panel" method="POST" action="/users/<%= editingUser.id %>/update">
+            <h4>Edit User #<%= editingUser.id %> in <%= selectedTenant.name %></h4>
+            <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+
+            <label>Username:</label>
+            <input type="text" name="username" required value="<%= editingUser.username %>">
+
+            <label>Access Role:</label>
+            <select name="roleId" required>
+                <% roles.forEach(r => { %>
+                    <option value="<%= r.id %>" <%= r.id === editingUser.role_id ? 'selected' : '' %>><%= r.name %></option>
+                <% }) %>
+            </select>
+
+            <label>Linked Employee:</label>
+            <select name="employeeId">
+                <option value="">None</option>
+                <% employees.forEach(e => { %>
+                    <option value="<%= e.id %>" <%= e.id === editingUser.employee_id ? 'selected' : '' %>><%= e.name %></option>
+                <% }) %>
+            </select>
+
+            <div class="row-buttons">
+                <button type="submit" class="btn btn-edit">Save User</button>
+                <a class="btn btn-muted" href="/?tenant=<%= encodeURIComponent(selectedTenant.id) %>">Cancel</a>
+            </div>
+        </form>
+    <% } else { %>
+        <!-- Add user control, collapsed until clicked -->
+        <details class="add-section">
+            <summary class="btn btn-primary">Add User</summary>
+            <form class="panel" method="POST" action="/users">
+                <h4>Add User to <%= selectedTenant.name %></h4>
+                <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+
+                <label>Username:</label>
+                <input type="text" name="username" required placeholder="e.g. jdoe">
+
+                <label>Access Role:</label>
+                <select name="roleId" required>
+                    <% roles.forEach(r => { %>
+                        <option value="<%= r.id %>"><%= r.name %></option>
+                    <% }) %>
+                </select>
+
+                <label>Linked Employee:</label>
+                <select name="employeeId">
+                    <option value="">None</option>
+                    <% employees.forEach(e => { %>
+                        <option value="<%= e.id %>"><%= e.name %></option>
+                    <% }) %>
+                </select>
+
+                <button type="submit" class="btn btn-primary">Add User</button>
+            </form>
+        </details>
+    <% } %>
+</div>
+</body>
+</html>
