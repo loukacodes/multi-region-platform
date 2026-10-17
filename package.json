@@ -1,7 +1,7 @@
 {
   "name": "assignment_2",
   "version": "1.0.0",
-  "description": "Multi-tenant SQLite routing demo: global registry plus isolated tenant shards",
+  "description": "Multi-region SQLite routing demo: global registry plus isolated region shards",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
