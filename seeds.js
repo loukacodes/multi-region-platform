@@ -1,5 +1,5 @@
-// Add a region here: one TENANT_SEEDS row, plus an EMPLOYEE_SEEDS entry for dummy data.
-const TENANT_SEEDS = [
+// Add a region here: one REGION_SEEDS row, plus an EMPLOYEE_SEEDS entry for dummy data.
+const REGION_SEEDS = [
   { id: 'region_us', name: 'North America', db_file: 'region_us.db' },
   { id: 'region_eu', name: 'Europe', db_file: 'region_eu.db' },
   { id: 'region_apac', name: 'Asia Pacific', db_file: 'region_apac.db' },
@@ -36,4 +36,4 @@ const EMPLOYEE_SEEDS = {
   ],
 };
 
-module.exports = { TENANT_SEEDS, EMPLOYEE_SEEDS };
+module.exports = { REGION_SEEDS, EMPLOYEE_SEEDS };

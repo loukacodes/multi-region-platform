@@ -3,7 +3,7 @@ const path = require('path');
 const ejs = require('ejs');
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-const { TENANT_SEEDS, EMPLOYEE_SEEDS } = require('./seeds');
+const { REGION_SEEDS, EMPLOYEE_SEEDS } = require('./seeds');
 
 const PORT = process.env.PORT || 3000;
 const DB_DIR = path.join(__dirname, 'db');
@@ -62,26 +62,26 @@ async function withDb(file, fn) {
 }
 
 // --- Routing: registry lookups and shard resolution ---
-function shardPath(tenant) {
-  return path.join(DB_DIR, tenant.db_file);
+function shardPath(region) {
+  return path.join(DB_DIR, region.db_file);
 }
 
-function listTenants() {
+function listRegions() {
   return withDb(REGISTRY_FILE, (db) =>
-    all(db, 'SELECT id, name, db_file FROM tenants ORDER BY name'),
+    all(db, 'SELECT id, name, db_file FROM regions ORDER BY name'),
   );
 }
 
-// Resolves the tenant's shard via the registry; the client never supplies a file path.
-async function withTenantShard(tenantId, fn) {
-  if (!tenantId) throw new HttpError(400, 'Missing tenant.');
+// Resolves the region's shard via the registry; the client never supplies a file path.
+async function withRegionShard(regionId, fn) {
+  if (!regionId) throw new HttpError(400, 'Missing region.');
 
-  const tenant = await withDb(REGISTRY_FILE, (db) =>
-    get(db, 'SELECT id, name, db_file FROM tenants WHERE id = ?', [tenantId]),
+  const region = await withDb(REGISTRY_FILE, (db) =>
+    get(db, 'SELECT id, name, db_file FROM regions WHERE id = ?', [regionId]),
   );
-  if (!tenant) throw new HttpError(404, `Unknown tenant: ${tenantId}`);
+  if (!region) throw new HttpError(404, `Unknown region: ${regionId}`);
 
-  return withDb(shardPath(tenant), (db) => fn(db, tenant));
+  return withDb(shardPath(region), (db) => fn(db, region));
 }
 
 // --- INITIALIZATION: create registry and shard files, seed if empty ---
@@ -90,35 +90,35 @@ async function initSystem() {
   await withDb(REGISTRY_FILE, async (db) => {
     await run(
       db,
-      `CREATE TABLE IF NOT EXISTS tenants (
+      `CREATE TABLE IF NOT EXISTS regions (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         db_file TEXT NOT NULL UNIQUE
       )`,
     );
-    for (const t of TENANT_SEEDS) {
+    for (const t of REGION_SEEDS) {
       await run(
         db,
-        `INSERT INTO tenants (id, name, db_file) VALUES (?, ?, ?)
+        `INSERT INTO regions (id, name, db_file) VALUES (?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET name = excluded.name, db_file = excluded.db_file`,
         [t.id, t.name, t.db_file],
       );
     }
-    // Drops registry rows for tenants no longer in TENANT_SEEDS.
+    // Drops registry rows for regions no longer in REGION_SEEDS.
     await run(
       db,
-      `DELETE FROM tenants WHERE id NOT IN (${TENANT_SEEDS.map(() => '?').join(', ')})`,
-      TENANT_SEEDS.map((t) => t.id),
+      `DELETE FROM regions WHERE id NOT IN (${REGION_SEEDS.map(() => '?').join(', ')})`,
+      REGION_SEEDS.map((t) => t.id),
     );
   });
 
-  for (const tenant of await listTenants()) {
-    await withDb(shardPath(tenant), (db) => seedShard(db, tenant));
+  for (const region of await listRegions()) {
+    await withDb(shardPath(region), (db) => seedShard(db, region));
   }
 }
 
 // Users are seeded separately so shards created before the users table get backfilled.
-async function seedShard(db, tenant) {
+async function seedShard(db, region) {
   await run(
     db,
     `CREATE TABLE IF NOT EXISTS roles (
@@ -147,7 +147,7 @@ async function seedShard(db, tenant) {
     await run(db, 'INSERT OR IGNORE INTO roles (name) VALUES (?)', [name]);
   }
 
-  const seeds = EMPLOYEE_SEEDS[tenant.id] || [];
+  const seeds = EMPLOYEE_SEEDS[region.id] || [];
   const { count: employeeCount } = await get(db, 'SELECT COUNT(*) AS count FROM employees');
   if (employeeCount === 0) {
     for (const [name, title] of seeds) {
@@ -198,7 +198,7 @@ async function writeUser(db, sql, params) {
     return await run(db, sql, params);
   } catch (err) {
     if (err.code === 'SQLITE_CONSTRAINT') {
-      throw new HttpError(400, 'Username already exists in this tenant.');
+      throw new HttpError(400, 'Username already exists in this region.');
     }
     throw err;
   }
@@ -214,8 +214,8 @@ async function assertRoleAndEmployee(db, roleId, employeeId) {
   }
 }
 
-function tenantUrl(tenantId, message) {
-  return `/?tenant=${encodeURIComponent(tenantId)}&message=${encodeURIComponent(message)}`;
+function regionUrl(regionId, message) {
+  return `/?region=${encodeURIComponent(regionId)}&message=${encodeURIComponent(message)}`;
 }
 
 // --- App ---
@@ -224,17 +224,17 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname));
 app.use(express.urlencoded({ extended: true }));
 
-// READ: tenant dropdown, selected tenant's records, optional edit form
+// READ: region dropdown, selected region's records, optional edit form
 app.get('/', async (req, res) => {
-  const tenants = await listTenants();
-  const tenantId = req.query.tenant || tenants[0]?.id;
-  const selectedTenant = tenants.find((t) => t.id === tenantId);
-  if (!selectedTenant) throw new HttpError(404, `Unknown tenant: ${tenantId}`);
+  const regions = await listRegions();
+  const regionId = req.query.region || regions[0]?.id;
+  const selectedRegion = regions.find((t) => t.id === regionId);
+  if (!selectedRegion) throw new HttpError(404, `Unknown region: ${regionId}`);
 
   const editId = req.query.edit ? parseId(req.query.edit) : null;
   const editUserId = req.query.editUser ? parseId(req.query.editUser) : null;
   const { rows, editing, roles, employees, users, editingUser } = await withDb(
-    shardPath(selectedTenant),
+    shardPath(selectedRegion),
     async (db) => ({
       rows: await all(db, 'SELECT id, name, role FROM employees ORDER BY id'),
       editing: editId
@@ -259,8 +259,8 @@ app.get('/', async (req, res) => {
   );
 
   res.render('index', {
-    tenants,
-    selectedTenant,
+    regions,
+    selectedRegion,
     rows,
     users,
     roles,
@@ -273,47 +273,47 @@ app.get('/', async (req, res) => {
 
 // CREATE
 app.post('/employees', async (req, res) => {
-  const { tenantId } = req.body;
+  const { regionId } = req.body;
   const { name, role } = parseEmployee(req.body);
 
-  await withTenantShard(tenantId, (db) =>
+  await withRegionShard(regionId, (db) =>
     run(db, 'INSERT INTO employees (name, role) VALUES (?, ?)', [name, role]),
   );
-  res.redirect(tenantUrl(tenantId, 'Employee added.'));
+  res.redirect(regionUrl(regionId, 'Employee added.'));
 });
 
 // UPDATE
 app.post('/employees/:id/update', async (req, res) => {
-  const { tenantId } = req.body;
+  const { regionId } = req.body;
   const id = parseId(req.params.id);
   const { name, role } = parseEmployee(req.body);
 
-  const result = await withTenantShard(tenantId, (db) =>
+  const result = await withRegionShard(regionId, (db) =>
     run(db, 'UPDATE employees SET name = ?, role = ? WHERE id = ?', [name, role, id]),
   );
-  if (result.changes === 0) throw new HttpError(404, `Employee ${id} not found in this tenant.`);
-  res.redirect(tenantUrl(tenantId, 'Employee updated.'));
+  if (result.changes === 0) throw new HttpError(404, `Employee ${id} not found in this region.`);
+  res.redirect(regionUrl(regionId, 'Employee updated.'));
 });
 
 // DELETE
 app.post('/employees/:id/delete', async (req, res) => {
-  const { tenantId } = req.body;
+  const { regionId } = req.body;
   const id = parseId(req.params.id);
 
-  const result = await withTenantShard(tenantId, async (db) => {
+  const result = await withRegionShard(regionId, async (db) => {
     await run(db, 'DELETE FROM users WHERE employee_id = ?', [id]);
     return run(db, 'DELETE FROM employees WHERE id = ?', [id]);
   });
-  if (result.changes === 0) throw new HttpError(404, `Employee ${id} not found in this tenant.`);
-  res.redirect(tenantUrl(tenantId, 'Employee and linked users deleted.'));
+  if (result.changes === 0) throw new HttpError(404, `Employee ${id} not found in this region.`);
+  res.redirect(regionUrl(regionId, 'Employee and linked users deleted.'));
 });
 
 // USER CREATE
 app.post('/users', async (req, res) => {
-  const { tenantId } = req.body;
+  const { regionId } = req.body;
   const { username, roleId, employeeId } = parseUser(req.body);
 
-  await withTenantShard(tenantId, async (db) => {
+  await withRegionShard(regionId, async (db) => {
     await assertRoleAndEmployee(db, roleId, employeeId);
     await writeUser(db, 'INSERT INTO users (username, role_id, employee_id) VALUES (?, ?, ?)', [
       username,
@@ -321,16 +321,16 @@ app.post('/users', async (req, res) => {
       employeeId,
     ]);
   });
-  res.redirect(tenantUrl(tenantId, 'User added.'));
+  res.redirect(regionUrl(regionId, 'User added.'));
 });
 
 // USER UPDATE
 app.post('/users/:id/update', async (req, res) => {
-  const { tenantId } = req.body;
+  const { regionId } = req.body;
   const id = parseId(req.params.id);
   const { username, roleId, employeeId } = parseUser(req.body);
 
-  const result = await withTenantShard(tenantId, async (db) => {
+  const result = await withRegionShard(regionId, async (db) => {
     await assertRoleAndEmployee(db, roleId, employeeId);
     return writeUser(
       db,
@@ -338,20 +338,20 @@ app.post('/users/:id/update', async (req, res) => {
       [username, roleId, employeeId, id],
     );
   });
-  if (result.changes === 0) throw new HttpError(404, `User ${id} not found in this tenant.`);
-  res.redirect(tenantUrl(tenantId, 'User updated.'));
+  if (result.changes === 0) throw new HttpError(404, `User ${id} not found in this region.`);
+  res.redirect(regionUrl(regionId, 'User updated.'));
 });
 
 // USER DELETE
 app.post('/users/:id/delete', async (req, res) => {
-  const { tenantId } = req.body;
+  const { regionId } = req.body;
   const id = parseId(req.params.id);
 
-  const result = await withTenantShard(tenantId, (db) =>
+  const result = await withRegionShard(regionId, (db) =>
     run(db, 'DELETE FROM users WHERE id = ?', [id]),
   );
-  if (result.changes === 0) throw new HttpError(404, `User ${id} not found in this tenant.`);
-  res.redirect(tenantUrl(tenantId, 'User deleted.'));
+  if (result.changes === 0) throw new HttpError(404, `User ${id} not found in this region.`);
+  res.redirect(regionUrl(regionId, 'User deleted.'));
 });
 
 // Error handler (Express 5 forwards rejected promises here)
@@ -367,7 +367,7 @@ app.use((err, req, res, next) => {
 initSystem()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`Multi-tenant server running at http://localhost:${PORT}`);
+      console.log(`Multi-region server running at http://localhost:${PORT}`);
     });
   })
   .catch((err) => {

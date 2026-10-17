@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Enterprise Multi-Tenant Platform</title>
+    <title>Enterprise Multi-Region Platform</title>
     <style>
         * { box-sizing: border-box; }
         body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; color: #111; }
@@ -37,28 +37,28 @@
 </head>
 <body>
 <div class="container">
-    <h2>Enterprise SaaS Platform (Multi-Tenant Architecture)</h2>
+    <h2>Enterprise SaaS Platform (Multi-Region Architecture)</h2>
 
-    <!-- Tenant selector: resolves the shard via the global registry on each request -->
+    <!-- Region selector: resolves the shard via the global registry on each request -->
     <form method="GET" action="/">
-        <label for="tenantSelect"><strong>Active Region:</strong></label>
-        <select id="tenantSelect" name="tenant" onchange="this.form.submit()">
-            <% tenants.forEach(t => { %>
-                <option value="<%= t.id %>" <%= t.id === selectedTenant.id ? 'selected' : '' %>><%= t.name %></option>
+        <label for="regionSelect"><strong>Active Region:</strong></label>
+        <select id="regionSelect" name="region" onchange="this.form.submit()">
+            <% regions.forEach(t => { %>
+                <option value="<%= t.id %>" <%= t.id === selectedRegion.id ? 'selected' : '' %>><%= t.name %></option>
             <% }) %>
         </select>
     </form>
 
-    <p>Routed to shard: <span class="badge"><%= selectedTenant.db_file %></span></p>
+    <p>Routed to shard: <span class="badge"><%= selectedRegion.db_file %></span></p>
 
     <% if (message) { %>
         <div class="alert"><%= message %></div>
     <% } %>
 
-    <!-- READ: Table of the active tenant's records -->
-    <h3>Employees for <%= selectedTenant.name %></h3>
+    <!-- READ: Table of the active region's records -->
+    <h3>Employees for <%= selectedRegion.name %></h3>
     <% if (rows.length === 0) { %>
-        <p>No employee records found for this tenant.</p>
+        <p>No employee records found for this region.</p>
     <% } else { %>
         <table>
             <thead>
@@ -76,9 +76,9 @@
                         <td><%= row.name %></td>
                         <td><%= row.role %></td>
                         <td class="actions">
-                            <a class="btn btn-edit" href="/?tenant=<%= encodeURIComponent(selectedTenant.id) %>&edit=<%= row.id %>">Edit</a>
-                            <form method="POST" action="/employees/<%= row.id %>/delete" onsubmit="return confirm('Delete this record from <%= selectedTenant.name %>?');">
-                                <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+                            <a class="btn btn-edit" href="/?region=<%= encodeURIComponent(selectedRegion.id) %>&edit=<%= row.id %>">Edit</a>
+                            <form method="POST" action="/employees/<%= row.id %>/delete" onsubmit="return confirm('Delete this record from <%= selectedRegion.name %>?');">
+                                <input type="hidden" name="regionId" value="<%= selectedRegion.id %>">
                                 <button type="submit" class="btn btn-danger">Delete</button>
                             </form>
                         </td>
@@ -91,8 +91,8 @@
     <!-- Employee edit form, or the collapsed Add Employee control -->
     <% if (editing) { %>
         <form class="panel" method="POST" action="/employees/<%= editing.id %>/update">
-            <h4>Edit Employee #<%= editing.id %> in <%= selectedTenant.name %></h4>
-            <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+            <h4>Edit Employee #<%= editing.id %> in <%= selectedRegion.name %></h4>
+            <input type="hidden" name="regionId" value="<%= selectedRegion.id %>">
 
             <label>Employee Name:</label>
             <input type="text" name="name" required value="<%= editing.name %>">
@@ -102,15 +102,15 @@
 
             <div class="row-buttons">
                 <button type="submit" class="btn btn-edit">Save Changes</button>
-                <a class="btn btn-muted" href="/?tenant=<%= encodeURIComponent(selectedTenant.id) %>">Cancel</a>
+                <a class="btn btn-muted" href="/?region=<%= encodeURIComponent(selectedRegion.id) %>">Cancel</a>
             </div>
         </form>
     <% } else { %>
         <details class="add-section">
             <summary class="btn btn-primary">Add Employee</summary>
             <form class="panel" method="POST" action="/employees">
-                <h4>Add Employee to <%= selectedTenant.name %></h4>
-                <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+                <h4>Add Employee to <%= selectedRegion.name %></h4>
+                <input type="hidden" name="regionId" value="<%= selectedRegion.id %>">
 
                 <label>Employee Name:</label>
                 <input type="text" name="name" required placeholder="e.g. John Doe">
@@ -118,15 +118,15 @@
                 <label>Role:</label>
                 <input type="text" name="role" required placeholder="e.g. Software Engineer">
 
-                <button type="submit" class="btn btn-primary">Add Record to Tenant Database</button>
+                <button type="submit" class="btn btn-primary">Add Record to Region Database</button>
             </form>
         </details>
     <% } %>
 
-    <!-- READ: Users and access roles stored in this tenant's shard -->
+    <!-- READ: Users and access roles stored in this region's shard -->
     <h3>Users &amp; Access Roles</h3>
     <% if (users.length === 0) { %>
-        <p>No users for this tenant.</p>
+        <p>No users for this region.</p>
     <% } else { %>
         <table>
             <thead>
@@ -144,9 +144,9 @@
                         <td><%= u.access_role %></td>
                         <td><%= u.employee || '-' %></td>
                         <td class="actions">
-                            <a class="btn btn-edit" href="/?tenant=<%= encodeURIComponent(selectedTenant.id) %>&editUser=<%= u.id %>">Edit</a>
+                            <a class="btn btn-edit" href="/?region=<%= encodeURIComponent(selectedRegion.id) %>&editUser=<%= u.id %>">Edit</a>
                             <form method="POST" action="/users/<%= u.id %>/delete" onsubmit="return confirm('Delete user <%= u.username %>?');">
-                                <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+                                <input type="hidden" name="regionId" value="<%= selectedRegion.id %>">
                                 <button type="submit" class="btn btn-danger">Delete</button>
                             </form>
                         </td>
@@ -159,8 +159,8 @@
     <% if (editingUser) { %>
         <!-- MODIFY: Update form for the selected user -->
         <form class="panel" method="POST" action="/users/<%= editingUser.id %>/update">
-            <h4>Edit User #<%= editingUser.id %> in <%= selectedTenant.name %></h4>
-            <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+            <h4>Edit User #<%= editingUser.id %> in <%= selectedRegion.name %></h4>
+            <input type="hidden" name="regionId" value="<%= selectedRegion.id %>">
 
             <label>Username:</label>
             <input type="text" name="username" required value="<%= editingUser.username %>">
@@ -182,7 +182,7 @@
 
             <div class="row-buttons">
                 <button type="submit" class="btn btn-edit">Save User</button>
-                <a class="btn btn-muted" href="/?tenant=<%= encodeURIComponent(selectedTenant.id) %>">Cancel</a>
+                <a class="btn btn-muted" href="/?region=<%= encodeURIComponent(selectedRegion.id) %>">Cancel</a>
             </div>
         </form>
     <% } else { %>
@@ -190,8 +190,8 @@
         <details class="add-section">
             <summary class="btn btn-primary">Add User</summary>
             <form class="panel" method="POST" action="/users">
-                <h4>Add User to <%= selectedTenant.name %></h4>
-                <input type="hidden" name="tenantId" value="<%= selectedTenant.id %>">
+                <h4>Add User to <%= selectedRegion.name %></h4>
+                <input type="hidden" name="regionId" value="<%= selectedRegion.id %>">
 
                 <label>Username:</label>
                 <input type="text" name="username" required placeholder="e.g. jdoe">
