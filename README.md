@@ -2,7 +2,8 @@
 
 A small Node.js, Express, SQLite, and EJS app that routes each region to its own SQLite database shard. The shards share one schema, and a separate registry database maps each region to its shard file.
 
-![alt text](image.png)
+<img width="1325" height="824" alt="image" src="https://github.com/user-attachments/assets/e8f8fe18-94b1-44e3-87e1-20829c7579fe" />
+
 
 ## Overview
 
