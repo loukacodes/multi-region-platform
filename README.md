@@ -1,4 +1,4 @@
-# Multi-Region SQLite Demo
+# Multi-Region Platform
 
 A small Node.js, Express, SQLite, and EJS app that routes each region to its own SQLite database shard. The shards share one schema, and a separate registry database maps each region to its shard file.
 
